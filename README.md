@@ -1,7 +1,5 @@
-<div align="center">
-  <div style="background-color: white; padding: 20px; border-radius: 12px; display: inline-block; margin-bottom: 20px;">
-    <img src="public/images/logo.png" alt="ClipMind Logo" width="300" />
-  </div>
+<div align="center" style="">
+  <img src="public/images/logo.png" alt="ClipMind Logo" width="300" />
   
   # 🧠 ClipMind - AI YouTube Video Summarizer
   
