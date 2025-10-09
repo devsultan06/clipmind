@@ -1,8 +1,75 @@
+"use client";
+
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Sparkles, History, Zap, BookOpen, User } from "lucide-react";
+import {
+  Sparkles,
+  History,
+  Zap,
+  BookOpen,
+  User,
+  CheckCircle,
+  Loader,
+  X,
+  ExternalLink,
+} from "lucide-react";
 
 export default function Home() {
+  const [url, setUrl] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [currentStep, setCurrentStep] = useState("");
+  const [isComplete, setIsComplete] = useState(false);
+
+  const steps = [
+    { text: "Analyzing video...", duration: 1500 },
+    { text: "Fetching transcript...", duration: 2000 },
+    { text: "Processing with AI...", duration: 2500 },
+    { text: "Generating summary...", duration: 1500 },
+    { text: "Finalizing results...", duration: 1000 },
+  ];
+
+  const simulateSummarization = async () => {
+    if (!url.trim()) return;
+
+    setIsProcessing(true);
+    setProgress(0);
+    setIsComplete(false);
+
+    let totalProgress = 0;
+    const progressIncrement = 100 / steps.length;
+
+    for (let i = 0; i < steps.length; i++) {
+      setCurrentStep(steps[i].text);
+
+      // Simulate progress within each step
+      const stepDuration = steps[i].duration;
+      const stepIncrement = progressIncrement / (stepDuration / 100);
+
+      for (let j = 0; j < stepDuration / 100; j++) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        totalProgress += stepIncrement;
+        setProgress(Math.min(totalProgress, (i + 1) * progressIncrement));
+      }
+    }
+
+    setIsComplete(true);
+    setCurrentStep("Summary ready!");
+  };
+
+  const closeModal = () => {
+    setIsProcessing(false);
+    setIsComplete(false);
+    setProgress(0);
+    setCurrentStep("");
+  };
+
+  const isValidYouTubeUrl = (url: string) => {
+    const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/;
+    return youtubeRegex.test(url);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
       {/* Header */}
@@ -48,10 +115,17 @@ export default function Home() {
             <div className="flex gap-4">
               <input
                 type="text"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
                 placeholder="Paste YouTube URL here..."
                 className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-700"
               />
-              <button className="px-8 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium flex items-center gap-2">
+              <button
+                onClick={simulateSummarization}
+                disabled={!url.trim() || !isValidYouTubeUrl(url)}
+                className="px-8 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                <Sparkles className="w-4 h-4" />
                 <span>Summarize</span>
               </button>
             </div>
@@ -108,6 +182,121 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      {/* Progress Modal */}
+      {isProcessing && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative">
+            {/* Close button */}
+            <button
+              onClick={closeModal}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {!isComplete ? (
+              // Processing State
+              <div className="text-center">
+                <div className="mb-6">
+                  <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Loader className="w-8 h-8 text-purple-600 animate-spin" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                    Creating Your Summary
+                  </h3>
+                  <p className="text-gray-600 text-sm">{currentStep}</p>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="mb-6">
+                  <div className="bg-gray-200 rounded-full h-3 overflow-hidden">
+                    <div
+                      className="bg-purple-600 h-full rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  <p className="text-sm text-gray-500 mt-2">
+                    {Math.round(progress)}% complete
+                  </p>
+                </div>
+
+                {/* Processing Steps */}
+                <div className="space-y-2 text-left">
+                  {steps.map((step, index) => {
+                    const stepProgress = (progress / 100) * steps.length;
+                    const isCurrentStep = Math.floor(stepProgress) === index;
+                    const isCompleted = stepProgress > index;
+
+                    return (
+                      <div key={index} className="flex items-center gap-3">
+                        <div
+                          className={`w-4 h-4 rounded-full flex items-center justify-center ${
+                            isCompleted
+                              ? "bg-green-500"
+                              : isCurrentStep
+                              ? "bg-purple-600"
+                              : "bg-gray-200"
+                          }`}
+                        >
+                          {isCompleted && (
+                            <CheckCircle className="w-3 h-3 text-white" />
+                          )}
+                          {isCurrentStep && !isCompleted && (
+                            <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                          )}
+                        </div>
+                        <span
+                          className={`text-sm ${
+                            isCurrentStep
+                              ? "text-purple-600 font-medium"
+                              : isCompleted
+                              ? "text-green-600"
+                              : "text-gray-400"
+                          }`}
+                        >
+                          {step.text}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              // Completion State
+              <div className="text-center">
+                <div className="mb-6">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle className="w-8 h-8 text-green-600" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                    Summary Complete!
+                  </h3>
+                  <p className="text-gray-600 text-sm">
+                    Your AI-powered summary is ready to view
+                  </p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <Link href="/summary/1" className="flex-1">
+                    <button className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium flex items-center justify-center gap-2">
+                      <ExternalLink className="w-4 h-4" />
+                      <span>View Full Summary</span>
+                    </button>
+                  </Link>
+                  <button
+                    onClick={closeModal}
+                    className="px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
