@@ -10,7 +10,6 @@ import {
   Share2,
   Trash2,
 } from "lucide-react";
-
 // Mock data - replace with real data from your database
 const mockSummaries = [
   {

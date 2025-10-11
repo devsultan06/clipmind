@@ -37,25 +37,91 @@ export default function Home() {
     setProgress(0);
     setIsComplete(false);
 
-    let totalProgress = 0;
-    const progressIncrement = 100 / steps.length;
+    try {
+      // Step 1: Analyzing video
+      setCurrentStep("Analyzing video...");
+      setProgress(20);
 
-    for (let i = 0; i < steps.length; i++) {
-      setCurrentStep(steps[i].text);
+      // Step 2: Fetching transcript
+      setCurrentStep("Fetching transcript...");
+      setProgress(40);
 
-      // Simulate progress within each step
-      const stepDuration = steps[i].duration;
-      const stepIncrement = progressIncrement / (stepDuration / 100);
+      // Make API call to your endpoint
+      const response = await fetch("/api/summarize", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url: url.trim() }),
+      });
 
-      for (let j = 0; j < stepDuration / 100; j++) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        totalProgress += stepIncrement;
-        setProgress(Math.min(totalProgress, (i + 1) * progressIncrement));
+      if (!response.ok) {
+        // Try to get error details from the response
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage += ` - ${
+            errorData.error || errorData.message || "Unknown error"
+          }`;
+          console.log("Full error response:", errorData);
+        } catch {
+          // If we can't parse the error response, just use the status
+          console.log("Could not parse error response");
+        }
+        throw new Error(errorMessage);
       }
-    }
 
-    setIsComplete(true);
-    setCurrentStep("Summary ready!");
+      const data = await response.json();
+
+      // Console log the full response and transcript
+      console.log("Full API response:", data);
+      console.log("Transcript received:", data.transcript);
+
+      // Step 3: Processing complete
+      setCurrentStep("Processing with AI...");
+      setProgress(70);
+
+      // Brief pause to show the step
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Step 4: Finalizing
+      setCurrentStep("Finalizing results...");
+      setProgress(90);
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Complete
+      setProgress(100);
+      setIsComplete(true);
+      setCurrentStep("Summary ready!");
+    } catch (error) {
+      console.error("Error processing video:", error);
+
+      // Handle different types of errors with specific messages
+      if (error instanceof Error) {
+        if (
+          error.message.includes("404") &&
+          error.message.includes("No transcript available")
+        ) {
+          setCurrentStep(
+            "No captions available for this video. Try a different video with subtitles."
+          );
+        } else if (error.message.includes("Invalid YouTube URL")) {
+          setCurrentStep("Please enter a valid YouTube URL.");
+        } else if (error.message.includes("Video unavailable")) {
+          setCurrentStep("Video is private or unavailable.");
+        } else {
+          setCurrentStep("Error occurred. Please try again.");
+        }
+      } else {
+        setCurrentStep("Error occurred. Please try again.");
+      }
+
+      // Reset after showing error
+      setTimeout(() => {
+        closeModal();
+      }, 5000); // Increased time to 5 seconds to read the error
+    }
   };
 
   const closeModal = () => {
