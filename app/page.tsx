@@ -99,7 +99,7 @@ export default function Home() {
 
       const data = await response.json();
 
-      console.log("Summary API response:", data.playerData);
+      console.log("Summary API response:", data.playerData?.videoDetails.title);
 
       const {
         videoId,
