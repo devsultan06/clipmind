@@ -1,17 +1,15 @@
-// ✅ Force Node runtime (important for xml2js)
+// ✅ Force Node runtime (important for external APIs)
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { parseStringPromise } from "xml2js";
+import { Supadata } from "@supadata/js";
 import { generateText } from "ai";
 import { google } from "@/lib/gemini";
-import { CaptionTrack, ParsedTranscript, TranscriptEntry } from "@/types";
 
 export async function GET(request: Request): Promise<Response> {
   const { searchParams } = new URL(request.url);
   const videoUrl = searchParams.get("url");
-  const language = searchParams.get("lang") || "en";
 
   if (!videoUrl) {
     return NextResponse.json(
@@ -30,10 +28,9 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   try {
-    // ✅ Step 1: Fetch YouTube HTML (add headers to mimic browser)
+    // ✅ Step 1: Get video details from YouTube
     const htmlResponse = await fetch(videoUrl, {
       redirect: "follow",
-
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         "Accept-Language": "en-US,en;q=0.9",
@@ -47,7 +44,7 @@ export async function GET(request: Request): Promise<Response> {
     if (!apiKeyMatch) throw new Error("INNERTUBE_API_KEY not found");
     const apiKey = apiKeyMatch[1];
 
-    // ✅ Step 2: Get player data
+    // ✅ Step 2: Get player data for video details
     const playerEndpoint = `https://www.youtube.com/youtubei/v1/player?key=${apiKey}`;
     const playerResponse = await fetch(playerEndpoint, {
       method: "POST",
@@ -79,63 +76,103 @@ export async function GET(request: Request): Promise<Response> {
     const formattedDuration = `${minutes}m ${seconds}s`;
     const viewCount = parseInt(videoDetails.viewCount || "0", 10);
 
-    // ✅ Step 3: Safely extract captions
-    const tracks = playerData?.captions?.playerCaptionsTracklistRenderer
-      ?.captionTracks as Array<CaptionTrack> | undefined;
-
-    if (!tracks || tracks.length === 0) {
-      return NextResponse.json(
-        { error: "No subtitles available for this video." },
-        { status: 404 }
-      );
-    }
-
-    const track =
-      tracks.find((t) => t.languageCode === language) ||
-      tracks.find((t) => t.languageCode.startsWith("en")) ||
-      tracks[0]; // fallback to first track if specific lang not found
-
-    if (!track) {
-      return NextResponse.json(
-        { error: `No captions found for language: ${language}` },
-        { status: 404 }
-      );
-    }
-
-    const baseUrl = track.baseUrl.replace(/&fmt=\w+$/, "");
-
-    // ✅ Step 4: Fetch captions XML (with headers)
-    const xmlResponse = await fetch(baseUrl, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      },
+    // ✅ Step 3: Get transcript using Supadata
+    const supadata = new Supadata({
+      apiKey: process.env.SUPADATA_API_KEY as string,
     });
-    if (!xmlResponse.ok) throw new Error("Failed to fetch captions XML");
 
-    const xml = await xmlResponse.text();
-    const parsed = (await parseStringPromise(xml)) as ParsedTranscript;
+    // Request transcript
+    const transcript = await supadata.youtube.transcript({
+      url: videoUrl,
+      lang: "en",
+      text: true,
+    });
 
-    const transcript: TranscriptEntry[] = Array.isArray(parsed.transcript?.text)
-      ? parsed.transcript.text.map((entry) => ({
-          text: entry._,
-          start: parseFloat(entry.$.start),
-          duration: parseFloat(entry.$.dur),
-          end: parseFloat(entry.$.start) + parseFloat(entry.$.dur),
-        }))
-      : [];
+    // Debug: Log the full response structure
+    console.log(
+      "Full transcript response:",
+      JSON.stringify(transcript, null, 2)
+    );
 
-    if (transcript.length === 0) throw new Error("Empty subtitle data.");
+    // Handle direct text response or job-based response
+    let result: string | undefined;
 
-    // ✅ Step 5: Combine into one string
-    const text = transcript.map((entry) => entry.text).join(" ");
+    // Type assertion helper with more possible properties
+    const transcriptResponse = transcript as unknown as {
+      text?: string;
+      jobId?: string;
+      data?: { text?: string };
+      content?: string;
+      transcript?: string;
+      [key: string]: unknown;
+    };
 
-    // ✅ Step 6: Summarize with Gemini
-    const prompt = `
+    // Check if response has direct text content
+    if (transcriptResponse.text) {
+      result = transcriptResponse.text;
+    }
+    // Check if response has content property
+    else if (transcriptResponse.content) {
+      result = transcriptResponse.content;
+    }
+    // Check if response has transcript property
+    else if (transcriptResponse.transcript) {
+      result = transcriptResponse.transcript;
+    }
+    // Check if response has jobId for polling
+    else if (transcriptResponse.jobId) {
+      let jobStatus = await supadata.transcript.getJobStatus(
+        transcriptResponse.jobId
+      );
+
+      const jobStatusResponse = jobStatus as unknown as {
+        status: string;
+        error?: string | { message?: string };
+        content?: string;
+        data?: { text?: string };
+      };
+
+      while (
+        jobStatusResponse.status !== "completed" &&
+        jobStatusResponse.status !== "failed"
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        jobStatus = await supadata.transcript.getJobStatus(
+          transcriptResponse.jobId
+        );
+      }
+
+      if (jobStatusResponse.status === "failed") {
+        const errorMessage =
+          typeof jobStatusResponse.error === "string"
+            ? jobStatusResponse.error
+            : jobStatusResponse.error?.message || "Unknown error";
+        throw new Error(`Job failed: ${errorMessage}`);
+      }
+
+      result = jobStatusResponse.content || jobStatusResponse.data?.text;
+    } else {
+      // Handle other response formats - try to extract text from data property
+      result = transcriptResponse.data?.text;
+
+      // If still no result, log the structure and return error
+      if (!result) {
+        console.error(
+          "Unable to extract transcript from response structure:",
+          Object.keys(transcriptResponse)
+        );
+        throw new Error("Transcript not found in response");
+      }
+    }
+
+    // ✅ Step 4: Summarize with Gemini AI
+    let summary = "";
+    if (result) {
+      const prompt = `
 You are a helpful assistant. Summarize the following YouTube transcript clearly and concisely.
 
 Transcript:
-"${text}"
+"${result}"
 
 Return valid JSON:
 {
@@ -147,12 +184,14 @@ Return valid JSON:
 }
 `;
 
-    const { text: summary } = await generateText({
-      model: google("gemini-2.5-flash"),
-      prompt,
-    });
+      const { text: summaryText } = await generateText({
+        model: google("gemini-2.5-flash"),
+        prompt,
+      });
+      summary = summaryText;
+    }
 
-    // ✅ Return combined response
+    // ✅ Return combined response with all video details
     return NextResponse.json({
       videoId,
       title,
@@ -161,16 +200,14 @@ Return valid JSON:
       channelUrl,
       duration: formattedDuration,
       viewCount,
-      language,
-      text,
+      language: "en",
+      text: result,
       summary,
     });
-  } catch (error: unknown) {
+  } catch (error) {
     console.error("Transcript extraction failed:", error);
     return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Internal Server Error",
-      },
+      { error: "Failed to extract transcript" },
       { status: 500 }
     );
   }
