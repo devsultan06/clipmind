@@ -203,6 +203,7 @@ Return valid JSON:
       language: "en",
       text: result,
       summary,
+      playerData,
     });
   } catch (error) {
     console.error("Transcript extraction failed:", error);

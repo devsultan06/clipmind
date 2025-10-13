@@ -28,6 +28,7 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState("");
   const [isComplete, setIsComplete] = useState(false);
+  const [title, setTitle] = useState("");
   const { addSummary } = useSummaryStore();
   type SummaryData = {
     videoId: string;
@@ -98,6 +99,8 @@ export default function Home() {
 
       const data = await response.json();
 
+      console.log("Summary API response:", data.playerData);
+
       const {
         videoId,
         title,
@@ -109,6 +112,8 @@ export default function Home() {
         summary,
         text,
       } = data;
+
+      setTitle(title);
 
       setData({
         videoId: videoId,
@@ -386,6 +391,7 @@ export default function Home() {
                   </h3>
                   <p className="text-gray-600 text-sm">
                     Your AI-powered summary is ready to view
+                    {title}
                   </p>
                 </div>
 
