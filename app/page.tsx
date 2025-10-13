@@ -70,9 +70,10 @@ export default function Home() {
       setProgress(33);
 
       const response = await fetch(
-        `/api/summarize?url=${encodeURIComponent(url.trim())}&lang=en`,
+        `/api/test?url=${encodeURIComponent(url.trim())}&lang=en`,
         {
           method: "GET",
+          redirect: "follow",
         }
       );
 
