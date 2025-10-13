@@ -14,6 +14,13 @@ import {
   X,
   ExternalLink,
 } from "lucide-react";
+import { useSummaryStore } from "@/store/summaryStore";
+
+const formattedDate = new Date().toLocaleDateString("en-US", {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+});
 
 export default function Home() {
   const [url, setUrl] = useState("");
@@ -21,16 +28,29 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState("");
   const [isComplete, setIsComplete] = useState(false);
+  const { addSummary } = useSummaryStore();
+  type SummaryData = {
+    videoId: string;
+    title: string;
+    thumbnail: string;
+    channelName: string;
+    channelUrl: string;
+    duration: string;
+    viewCount: number;
+    summary: string;
+    transcript: string;
+    videoUrl: string;
+  };
+
+  const [data, setData] = useState<SummaryData | null>(null);
 
   const steps = [
-    { text: "Analyzing video...", duration: 1500 },
-    { text: "Fetching transcript...", duration: 2000 },
-    { text: "Processing with AI...", duration: 2500 },
-    { text: "Generating summary...", duration: 1500 },
-    { text: "Finalizing results...", duration: 1000 },
+    { text: "Analyzing video..." },
+    { text: "Fetching transcript & generating summary..." },
+    { text: "Finalizing results..." },
   ];
 
-  const simulateSummarization = async () => {
+  const processVideo = async () => {
     if (!url.trim()) return;
 
     setIsProcessing(true);
@@ -42,18 +62,19 @@ export default function Home() {
       setCurrentStep("Analyzing video...");
       setProgress(20);
 
-      // Step 2: Fetching transcript
-      setCurrentStep("Fetching transcript...");
-      setProgress(40);
+      // Small delay to show this step
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Make API call to your endpoint
-      const response = await fetch("/api/summarize", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ url: url.trim() }),
-      });
+      // Step 2: Fetching transcript & AI processing (this is where the real work happens)
+      setCurrentStep("Fetching transcript & generating summary...");
+      setProgress(33);
+
+      const response = await fetch(
+        `/api/summarize?url=${encodeURIComponent(url.trim())}&lang=en`,
+        {
+          method: "GET",
+        }
+      );
 
       if (!response.ok) {
         // Try to get error details from the response
@@ -64,6 +85,9 @@ export default function Home() {
             errorData.error || errorData.message || "Unknown error"
           }`;
           console.log("Full error response:", errorData);
+          setCurrentStep(
+            `Error: ${errorData.error || errorData.message || "Unknown error"}`
+          );
         } catch {
           // If we can't parse the error response, just use the status
           console.log("Could not parse error response");
@@ -73,22 +97,50 @@ export default function Home() {
 
       const data = await response.json();
 
-      // Console log the full response and transcript
-      console.log("Full API response:", data);
-      console.log("Transcript received:", data.transcript);
+      const {
+        videoId,
+        title,
+        thumbnail,
+        channelName,
+        channelUrl,
+        duration,
+        viewCount,
+        summary,
+        text,
+      } = data;
 
-      // Step 3: Processing complete
-      setCurrentStep("Processing with AI...");
-      setProgress(70);
+      setData({
+        videoId: videoId,
+        title: title,
+        thumbnail: thumbnail,
+        channelName: channelName,
+        channelUrl: channelUrl,
+        duration: duration,
+        viewCount: viewCount,
+        summary: summary,
+        transcript: text,
+        videoUrl: url,
+      });
 
-      // Brief pause to show the step
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      addSummary({
+        id: videoId,
+        title: title,
+        videoUrl: url,
+        createdAt: formattedDate,
+        transcript: text,
+        viewCount: viewCount,
+        thumbnail: thumbnail,
+        summary: summary,
+        channelName: channelName,
+        duration: duration,
+        channelUrl: channelUrl,
+      });
 
-      // Step 4: Finalizing
+      // Step 3: Finalizing (API call is complete, summary is ready)
       setCurrentStep("Finalizing results...");
       setProgress(90);
 
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 800));
 
       // Complete
       setProgress(100);
@@ -99,10 +151,7 @@ export default function Home() {
 
       // Handle different types of errors with specific messages
       if (error instanceof Error) {
-        if (
-          error.message.includes("404") &&
-          error.message.includes("No transcript available")
-        ) {
+        if (error.message.includes("No captions found for this video")) {
           setCurrentStep(
             "No captions available for this video. Try a different video with subtitles."
           );
@@ -110,6 +159,8 @@ export default function Home() {
           setCurrentStep("Please enter a valid YouTube URL.");
         } else if (error.message.includes("Video unavailable")) {
           setCurrentStep("Video is private or unavailable.");
+        } else if (error.message.includes("INNERTUBE_API_KEY not found")) {
+          setCurrentStep("YouTube API issue. Please try again later.");
         } else {
           setCurrentStep("Error occurred. Please try again.");
         }
@@ -120,7 +171,7 @@ export default function Home() {
       // Reset after showing error
       setTimeout(() => {
         closeModal();
-      }, 5000); // Increased time to 5 seconds to read the error
+      }, 5000);
     }
   };
 
@@ -187,7 +238,7 @@ export default function Home() {
                 className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-700"
               />
               <button
-                onClick={simulateSummarization}
+                onClick={processVideo}
                 disabled={!url.trim() || !isValidYouTubeUrl(url)}
                 className="px-8 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
@@ -249,11 +300,9 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Progress Modal */}
       {isProcessing && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative">
-            {/* Close button */}
             <button
               onClick={closeModal}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
@@ -262,7 +311,6 @@ export default function Home() {
             </button>
 
             {!isComplete ? (
-              // Processing State
               <div className="text-center">
                 <div className="mb-6">
                   <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -274,7 +322,6 @@ export default function Home() {
                   <p className="text-gray-600 text-sm">{currentStep}</p>
                 </div>
 
-                {/* Progress Bar */}
                 <div className="mb-6">
                   <div className="bg-gray-200 rounded-full h-3 overflow-hidden">
                     <div
@@ -287,7 +334,6 @@ export default function Home() {
                   </p>
                 </div>
 
-                {/* Processing Steps */}
                 <div className="space-y-2 text-left">
                   {steps.map((step, index) => {
                     const stepProgress = (progress / 100) * steps.length;
@@ -329,7 +375,6 @@ export default function Home() {
                 </div>
               </div>
             ) : (
-              // Completion State
               <div className="text-center">
                 <div className="mb-6">
                   <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -343,9 +388,8 @@ export default function Home() {
                   </p>
                 </div>
 
-                {/* Action Buttons */}
                 <div className="flex gap-3">
-                  <Link href="/summary/1" className="flex-1">
+                  <Link href={`/summary/${data?.videoId}`} className="flex-1">
                     <button className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium flex items-center justify-center gap-2">
                       <ExternalLink className="w-4 h-4" />
                       <span>View Full Summary</span>

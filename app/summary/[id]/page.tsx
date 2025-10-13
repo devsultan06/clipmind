@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowLeft,
   Share2,
@@ -13,108 +14,22 @@ import {
   Bookmark,
   BookmarkCheck,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import { useParams } from "next/navigation";
+import { useSummaryStore } from "@/store/summaryStore";
+import { formatViewCount } from "@/lib/formatCount";
+import Tags from "@/components/Tags";
 
-interface SummaryData {
-  id: string;
-  title: string;
-  videoUrl: string;
-  thumbnail: string;
-  duration: string;
-  createdAt: string;
-  tags: string[];
-  channelName?: string;
-  viewCount?: string;
-  summary: string;
-  transcript?: string;
-  keyPoints?: string[];
-}
-
-// Mock data - replace with real data fetching
-const mockSummaryData: Record<string, SummaryData> = {
-  "1": {
-    id: "1",
-    title: "How to Build a SaaS with Next.js",
-    videoUrl: "https://youtube.com/watch?v=example1",
-    thumbnail: "https://img.youtube.com/vi/example1/maxresdefault.jpg",
-    duration: "25:30",
-    createdAt: "2024-01-15",
-    tags: ["Next.js", "SaaS", "Tutorial"],
-    channelName: "Tech With Tim",
-    viewCount: "125K views",
-    summary: `This comprehensive tutorial covers everything you need to know about building a modern SaaS application with Next.js 14. 
-
-## Key Topics Covered:
-
-### 1. Project Setup & Architecture
-- Setting up Next.js 14 with App Router
-- TypeScript configuration
-- Database setup with Prisma and PostgreSQL
-- Authentication with NextAuth.js
-
-### 2. Core Features Implementation
-- User registration and login system
-- Subscription management with Stripe
-- Dashboard and user interface design
-- API routes and server components
-
-### 3. Advanced Features
-- Real-time notifications
-- File upload and management
-- Email integration with Resend
-- SEO optimization and metadata
-
-### 4. Deployment & Production
-- Vercel deployment configuration
-- Environment variables setup
-- Database migrations
-- Performance optimization
-
-## Key Takeaways:
-- Next.js 14 App Router provides excellent developer experience
-- Server components significantly improve performance
-- Proper authentication is crucial for SaaS applications
-- Stripe integration requires careful webhook handling
-- Database design impacts scalability
-
-This tutorial is perfect for developers looking to build their first SaaS product or upgrade their existing Next.js knowledge to the latest version.`,
-    transcript: `[00:00] Welcome to this comprehensive tutorial on building a SaaS application with Next.js 14...
-
-[02:30] First, let's set up our project structure. We'll be using the new App Router which provides better performance...
-
-[05:15] Authentication is crucial for any SaaS application. We'll implement this using NextAuth.js...
-
-[10:45] Now let's integrate Stripe for subscription management. This involves setting up webhooks...
-
-[15:20] The dashboard is the heart of our application. We'll use server components for better performance...
-
-[20:10] Finally, let's deploy our application to Vercel and configure our environment variables...`,
-    keyPoints: [
-      "Next.js 14 App Router architecture",
-      "Authentication with NextAuth.js",
-      "Stripe subscription integration",
-      "Database design with Prisma",
-      "Deployment best practices",
-    ],
-  },
-};
-
-interface SummaryPageProps {
-  params: {
-    summaryId: string;
-  };
-}
-
-export default function SummaryPage({ params }: SummaryPageProps) {
-  const [summary, setSummary] = useState<SummaryData | null>(null);
+export default function SummaryPage() {
+  const params = useParams();
+  const summaryId = params.id as string;
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
   const [copied, setCopied] = useState(false);
+  const { getSummaryById } = useSummaryStore();
 
-  useEffect(() => {
-    const summaryData =
-      mockSummaryData[params.summaryId as keyof typeof mockSummaryData];
-    setSummary(summaryData);
-  }, [params.summaryId]);
+  // Get summary data from store
+  const summary = getSummaryById(summaryId);
 
   if (!summary) {
     return (
@@ -153,6 +68,8 @@ export default function SummaryPage({ params }: SummaryPageProps) {
     }
   };
 
+  const result = formatViewCount(summary.viewCount);
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       month: "long",
@@ -160,6 +77,131 @@ export default function SummaryPage({ params }: SummaryPageProps) {
       year: "numeric",
     });
   };
+
+  const decodeHtmlEntities = (text: string) => {
+    const textArea = document.createElement("textarea");
+    textArea.innerHTML = text;
+    return textArea.value;
+  };
+
+  const rawSummary = summary.summary;
+
+  // Parse JSON summary if it exists
+  let parsedSummary: {
+    overview?: string;
+    mainTopics?: string[];
+    keyPoints?: string[];
+    insights?: string;
+    tags?: string[];
+  } | null = null;
+  let cleanedSummary = "";
+  let mainTopicsText = "";
+  let keyInsightsText = "";
+  let keyPoints: Array<{ bold: string; text: string }> = [];
+  let tags: string[] = [];
+
+  try {
+    // Check if the summary is JSON format
+    if (rawSummary.includes("```json")) {
+      const jsonMatch = rawSummary.match(/```json\s*([\s\S]*?)\s*```/);
+      if (jsonMatch) {
+        parsedSummary = JSON.parse(jsonMatch[1]);
+
+        if (parsedSummary) {
+          // Extract data from JSON structure
+          cleanedSummary = parsedSummary.overview || "";
+          mainTopicsText = Array.isArray(parsedSummary.mainTopics)
+            ? parsedSummary.mainTopics.join("\n\n")
+            : parsedSummary.mainTopics || "";
+          keyInsightsText = parsedSummary.insights || "";
+
+          // Format key points - use full text as normal text (no bold splitting)
+          if (Array.isArray(parsedSummary.keyPoints)) {
+            keyPoints = parsedSummary.keyPoints.map((point: string) => ({
+              bold: point.trim(),
+              text: "", // No text part since we want full text as normal
+            }));
+          }
+
+          // Extract tags
+          tags = Array.isArray(parsedSummary.tags) ? parsedSummary.tags : [];
+
+          localStorage.setItem("tags", JSON.stringify(tags));
+        }
+      }
+    } else {
+      // Fallback to old text parsing - Step 1: Remove the intro and tags section
+      cleanedSummary = rawSummary
+        .replace(/^Here.*?:\s*/, "") // remove "Here's a summary of..."
+        .replace(/\*\*Tags:[\s\S]*$/i, "") // remove tags section
+        .trim();
+
+      // Step 2: Extract Key Points section
+      const keyPointsMatch = cleanedSummary.match(
+        /\*\*Key Points:\*\*([\s\S]*?)(\n\n|\Z)/
+      );
+      const keyPointsText = keyPointsMatch ? keyPointsMatch[1] : "";
+
+      // Step 3: Split and format each key point
+      keyPoints = keyPointsText
+        .split(/\n\*\s+/)
+        .map((point) => point.replace(/\*\*/g, "").trim())
+        .filter((point) => point.length > 0)
+        .map((point) => {
+          const [boldPart, ...rest] = point.split(":");
+          return {
+            bold: boldPart.trim(),
+            text: rest.join(":").trim(),
+          };
+        });
+
+      // Step 4: Extract Main Topics section
+      const mainTopicsMatch = cleanedSummary.match(
+        /\*\*Main topics or ideas discussed:\*\*([\s\S]*?)(\n\n|\*\*|\Z)/i
+      );
+      mainTopicsText = mainTopicsMatch ? mainTopicsMatch[1].trim() : "";
+
+      // Step 5: Extract Key Insights section
+      const patterns = [
+        /Key insights (?:and|or) conclusions:?\s*([\s\S]*?)(\n\n|\Z)/i,
+        /Key insights:?\s*([\s\S]*?)(\n\n|\Z)/i,
+        /Insights:?\s*([\s\S]*?)(\n\n|\Z)/i,
+      ];
+
+      for (const pattern of patterns) {
+        const match = cleanedSummary.match(pattern);
+        if (match && match[1].trim()) {
+          keyInsightsText = match[1].trim();
+          break;
+        }
+      }
+
+      // Step 6: Remove extracted sections from cleaned summary
+      cleanedSummary = cleanedSummary
+        .replace(/\*\*Key Points:\*\*[\s\S]*?(\n\n|\Z)/, "")
+        .replace(
+          /\*\*Main topics or ideas discussed:\*\*[\s\S]*?(\n\n|\*\*|\Z)/i,
+          ""
+        )
+        .replace(
+          /Key insights (?:and|or) conclusions:?\s*[\s\S]*?(\n\n|\Z)/i,
+          ""
+        )
+        .replace(/Key insights:?\s*[\s\S]*?(\n\n|\Z)/i, "")
+        .trim();
+
+      // Extract tags from old format
+      const match = rawSummary.match(/\[([^\]]+)\]/);
+      if (match) {
+        try {
+          tags = JSON.parse(match[0]);
+        } catch {}
+      }
+    }
+  } catch (error) {
+    console.error("Error parsing summary:", error);
+    cleanedSummary = rawSummary;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
@@ -210,8 +252,21 @@ export default function SummaryPage({ params }: SummaryPageProps) {
 
       <main className="max-w-4xl mx-auto px-6 py-8">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-8">
-          <div className="relative aspect-video bg-gray-900">
-            <div className="absolute inset-0 flex items-center justify-center">
+          <div className="relative aspect-video bg-gray-900 group cursor-pointer">
+            {summary.thumbnail ? (
+              <Image
+                src={summary.thumbnail}
+                alt={summary.title}
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 80vw, 60vw"
+              />
+            ) : (
+              <div className="absolute inset-0 bg-gray-800" />
+            )}
+
+            {/* Overlay with play button and YouTube link */}
+            <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
               <div className="text-center text-white">
                 <div className="w-16 h-16 bg-white bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-4">
                   <ExternalLink className="w-8 h-8" />
@@ -252,22 +307,12 @@ export default function SummaryPage({ params }: SummaryPageProps) {
               )}
               {summary.viewCount && (
                 <div className="flex items-center gap-1">
-                  <span>{summary.viewCount}</span>
+                  <span>{result} views</span>
                 </div>
               )}
             </div>
 
-            {/* Tags */}
-            <div className="flex flex-wrap gap-2">
-              {summary.tags.map((tag: string, index: number) => (
-                <span
-                  key={index}
-                  className="px-3 py-1 bg-purple-100 text-purple-700 text-sm rounded-full"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
+            <Tags tags={tags} />
           </div>
         </div>
 
@@ -281,36 +326,58 @@ export default function SummaryPage({ params }: SummaryPageProps) {
             </button>
           </div>
 
-          <div className="prose prose-gray max-w-none">
-            <div
-              className="whitespace-pre-wrap"
-              dangerouslySetInnerHTML={{
-                __html: summary.summary
-                  .replace(
-                    /### (.*)/g,
-                    '<h3 class="text-lg font-semibold text-gray-900 mt-6 mb-3">$1</h3>'
-                  )
-                  .replace(
-                    /## (.*)/g,
-                    '<h2 class="text-xl font-semibold text-gray-900 mt-8 mb-4">$1</h2>'
-                  )
-                  .replace(/- (.*)/g, '<li class="ml-4">$1</li>'),
-              }}
-            />
+          <div className="prose prose-purple">
+            <ReactMarkdown>{cleanedSummary}</ReactMarkdown>
           </div>
         </div>
 
+        {/* Main Topics */}
+        {mainTopicsText && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              Main Topics
+            </h2>
+            <div className="prose prose-gray max-w-none">
+              <p className="text-gray-700 leading-relaxed whitespace-pre-line">
+                {mainTopicsText}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Key Insights */}
+        {keyInsightsText && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              Key Insights
+            </h2>
+            <div className="prose prose-gray max-w-none">
+              <p className="text-gray-700 leading-relaxed whitespace-pre-line">
+                {keyInsightsText}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Key Points */}
-        {summary.keyPoints && (
+        {keyPoints.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">
               Key Points
             </h2>
             <ul className="space-y-2">
-              {summary.keyPoints.map((point: string, index: number) => (
+              {keyPoints.map((point, index) => (
                 <li key={index} className="flex items-start gap-3">
                   <div className="w-2 h-2 bg-purple-600 rounded-full mt-2 flex-shrink-0"></div>
-                  <span className="text-gray-700">{point}</span>
+                  <span className="text-gray-700">
+                    {point.text ? (
+                      <>
+                        <strong>{point.bold}:</strong> {point.text}
+                      </>
+                    ) : (
+                      point.bold
+                    )}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -336,7 +403,7 @@ export default function SummaryPage({ params }: SummaryPageProps) {
               <div className="border-t pt-4">
                 <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
                   <pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono">
-                    {summary.transcript}
+                    {decodeHtmlEntities(summary.transcript)}
                   </pre>
                 </div>
               </div>

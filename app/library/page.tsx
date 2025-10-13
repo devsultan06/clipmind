@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Search,
   ArrowLeft,
@@ -9,66 +10,46 @@ import {
   Calendar,
   Share2,
   Trash2,
+  AlertTriangle,
+  X,
 } from "lucide-react";
-// Mock data - replace with real data from your database
-const mockSummaries = [
-  {
-    id: "1",
-    title: "How to Build a SaaS with Next.js",
-    videoUrl: "https://youtube.com/watch?v=example1",
-    thumbnail: "https://img.youtube.com/vi/example1/maxresdefault.jpg",
-    summary:
-      "A comprehensive guide on building scalable SaaS applications using Next.js, covering authentication, payments, and deployment.",
-    duration: "25:30",
-    createdAt: "2024-01-15",
-    tags: ["Next.js", "SaaS", "Tutorial"],
-  },
-  {
-    id: "2",
-    title: "Advanced React Patterns",
-    videoUrl: "https://youtube.com/watch?v=example2",
-    thumbnail: "https://img.youtube.com/vi/example2/maxresdefault.jpg",
-    summary:
-      "Learn advanced React patterns including compound components, render props, and custom hooks for better code organization.",
-    duration: "18:45",
-    createdAt: "2024-01-14",
-    tags: ["React", "Patterns", "JavaScript"],
-  },
-  {
-    id: "3",
-    title: "TypeScript Best Practices",
-    videoUrl: "https://youtube.com/watch?v=example3",
-    thumbnail: "https://img.youtube.com/vi/example3/maxresdefault.jpg",
-    summary:
-      "Essential TypeScript best practices for writing maintainable and type-safe code in large applications.",
-    duration: "32:15",
-    createdAt: "2024-01-13",
-    tags: ["TypeScript", "Best Practices", "Programming"],
-  },
-  {
-    id: "4",
-    title: "AI and Machine Learning Fundamentals",
-    videoUrl: "https://youtube.com/watch?v=example4",
-    thumbnail: "https://img.youtube.com/vi/example4/maxresdefault.jpg",
-    summary:
-      "Introduction to AI and ML concepts, covering neural networks, supervised learning, and practical applications.",
-    duration: "45:20",
-    createdAt: "2024-01-12",
-    tags: ["AI", "Machine Learning", "Technology"],
-  },
-];
+import { useSummaryStore } from "@/store/summaryStore";
+import Tags from "@/components/Tags";
 
 export default function Library() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    summaryId: string;
+    summaryTitle: string;
+  }>({
+    isOpen: false,
+    summaryId: "",
+    summaryTitle: "",
+  });
+  const { summaries, deleteSummary } = useSummaryStore();
+
+  const handleDeleteSummary = (id: string, title: string) => {
+    setDeleteModal({
+      isOpen: true,
+      summaryId: id,
+      summaryTitle: title,
+    });
+  };
+
+  const confirmDelete = () => {
+    deleteSummary(deleteModal.summaryId);
+    setDeleteModal({ isOpen: false, summaryId: "", summaryTitle: "" });
+  };
+
+  const cancelDelete = () => {
+    setDeleteModal({ isOpen: false, summaryId: "", summaryTitle: "" });
+  };
 
   // Filter summaries based on search query
-  const filteredSummaries = mockSummaries.filter(
-    (summary) =>
-      summary.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      summary.tags.some((tag) =>
-        tag.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+  const filteredSummaries = summaries.filter((summary) =>
+    summary.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Sort summaries
@@ -83,13 +64,9 @@ export default function Library() {
     return 0;
   });
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
+  const tags = localStorage.getItem("tags")
+    ? JSON.parse(localStorage.getItem("tags") || "[]")
+    : [];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
@@ -189,9 +166,20 @@ export default function Library() {
                 className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
               >
                 <div className="relative aspect-video bg-gray-100">
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <Play className="w-12 h-12 text-gray-400" />
-                  </div>
+                  {summary.thumbnail ? (
+                    <Image
+                      src={summary.thumbnail}
+                      alt={summary.title}
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Play className="w-12 h-12 text-gray-400" />
+                    </div>
+                  )}
+
                   <div className="absolute bottom-2 right-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
                     {summary.duration}
                   </div>
@@ -203,26 +191,34 @@ export default function Library() {
                     {summary.title}
                   </h3>
                   <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                    {summary.summary}
+                    {(() => {
+                      try {
+                        // Check if summary is JSON format
+                        if (summary.summary.includes("```json")) {
+                          const jsonMatch = summary.summary.match(
+                            /```json\s*([\s\S]*?)\s*```/
+                          );
+                          if (jsonMatch) {
+                            const parsed = JSON.parse(jsonMatch[1]);
+                            return parsed.overview || summary.summary;
+                          }
+                        }
+                        return summary.summary;
+                      } catch {
+                        return summary.summary;
+                      }
+                    })()}
                   </p>
 
-                  {/* Tags */}
-                  <div className="flex flex-wrap gap-1 mb-3">
-                    {summary.tags.slice(0, 3).map((tag, index) => (
-                      <span
-                        key={index}
-                        className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full"
-                      >
-                        {tag}
-                      </span>
-                    ))}
+                  <div className="mb-3">
+                    <Tags tags={tags} limit={3} />
                   </div>
 
                   {/* Meta Info */}
                   <div className="flex items-center justify-between text-xs text-gray-500 mb-4">
                     <div className="flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
-                      <span>{formatDate(summary.createdAt)}</span>
+                      <span>{summary.createdAt}</span>
                     </div>
                   </div>
 
@@ -237,7 +233,13 @@ export default function Library() {
                     <button className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                       <Share2 className="w-4 h-4 text-gray-600" />
                     </button>
-                    <button className="px-3 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors">
+                    <button
+                      onClick={() =>
+                        handleDeleteSummary(summary.id, summary.title)
+                      }
+                      className="px-3 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                      title="Delete summary"
+                    >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -247,6 +249,62 @@ export default function Library() {
           </div>
         )}
       </main>
+
+      {/* Delete Confirmation Modal */}
+      {deleteModal.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Delete Summary
+                </h3>
+              </div>
+              <button
+                onClick={cancelDelete}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="mb-6">
+              <p className="text-gray-600 mb-2">
+                Are you sure you want to delete this summary?
+              </p>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="font-medium text-gray-900 text-sm">
+                  &ldquo;{deleteModal.summaryTitle}&rdquo;
+                </p>
+              </div>
+              <p className="text-sm text-red-600 mt-3">
+                This action cannot be undone.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              <button
+                onClick={cancelDelete}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
