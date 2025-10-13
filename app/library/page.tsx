@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -19,6 +19,7 @@ import Tags from "@/components/Tags";
 export default function Library() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
+  const [tags, setTags] = useState<string[]>([]);
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
     summaryId: string;
@@ -64,9 +65,12 @@ export default function Library() {
     return 0;
   });
 
-  const tags = localStorage.getItem("tags")
-    ? JSON.parse(localStorage.getItem("tags") || "[]")
-    : [];
+  useEffect(() => {
+    const tags = localStorage.getItem("tags");
+    if (tags) {
+      setTags(JSON.parse(tags));
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
