@@ -1,5 +1,6 @@
 // ✅ Force Node runtime (important for xml2js)
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { parseStringPromise } from "xml2js";
@@ -31,10 +32,13 @@ export async function GET(request: Request): Promise<Response> {
   try {
     // ✅ Step 1: Fetch YouTube HTML (add headers to mimic browser)
     const htmlResponse = await fetch(videoUrl, {
+      redirect: "follow",
+
       headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         "Accept-Language": "en-US,en;q=0.9",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       },
     });
 
