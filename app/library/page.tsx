@@ -70,7 +70,7 @@ export default function Library() {
     if (tags) {
       setTags(JSON.parse(tags));
     }
-  }, []);
+  }, [tags]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
@@ -189,7 +189,6 @@ export default function Library() {
                   </div>
                 </div>
 
-                {/* Content */}
                 <div className="p-4">
                   <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
                     {summary.title}
@@ -197,7 +196,6 @@ export default function Library() {
                   <p className="text-sm text-gray-600 mb-3 line-clamp-2">
                     {(() => {
                       try {
-                        // Check if summary is JSON format
                         if (summary.summary.includes("```json")) {
                           const jsonMatch = summary.summary.match(
                             /```json\s*([\s\S]*?)\s*```/
