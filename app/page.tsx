@@ -378,10 +378,14 @@ export default function Home() {
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">
                     Summary Complete!
                   </h3>
-                  <p className="text-gray-600 text-sm">
+                  <p className="text-gray-600 text-sm mb-2">
                     Your AI-powered summary is ready to view
-                    {title}
                   </p>
+                  {title && (
+                    <p className="text-gray-800 font-medium text-sm">
+                      &ldquo;{title}&rdquo;
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex gap-3">

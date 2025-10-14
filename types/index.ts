@@ -1,23 +1,15 @@
-export interface CaptionTrack {
-  languageCode: string;
-  baseUrl: string;
+export interface TranscriptResponse {
+  text?: string;
+  jobId?: string;
+  content?: string;
+  transcript?: string;
+  data?: { text?: string };
+  [key: string]: unknown;
 }
 
-export interface TranscriptEntry {
-  text: string;
-  start: number;
-  duration: number;
-  end: number;
-}
-
-export interface ParsedTranscript {
-  transcript?: {
-    text?: Array<{
-      _: string;
-      $: {
-        start: string;
-        dur: string;
-      };
-    }>;
-  };
+export interface YouTubeVideoResponse {
+  items?: Array<{
+    contentDetails?: { duration?: string };
+    statistics?: { viewCount?: string };
+  }>;
 }

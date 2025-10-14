@@ -31,7 +31,6 @@ export default function Demo() {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-8">
-        {/* Back Button */}
         <Link
           href="/"
           className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 mb-8 transition-colors"
@@ -40,7 +39,6 @@ export default function Demo() {
           <span>Back to Home </span>
         </Link>
 
-        {/* Page Title */}
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
             See ClipMind in Action

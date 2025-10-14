@@ -6,22 +6,7 @@ import { NextResponse } from "next/server";
 import { Supadata } from "@supadata/js";
 import { generateText } from "ai";
 import { google } from "@/lib/gemini";
-
-interface TranscriptResponse {
-  text?: string;
-  jobId?: string;
-  content?: string;
-  transcript?: string;
-  data?: { text?: string };
-  [key: string]: unknown;
-}
-
-interface YouTubeVideoResponse {
-  items?: Array<{
-    contentDetails?: { duration?: string };
-    statistics?: { viewCount?: string };
-  }>;
-}
+import { TranscriptResponse, YouTubeVideoResponse } from "@/types";
 
 export async function GET(request: Request): Promise<Response> {
   const { searchParams } = new URL(request.url);
@@ -34,7 +19,7 @@ export async function GET(request: Request): Promise<Response> {
     );
   }
 
-  // ✅ Extract video ID
+  // Extract video ID
   const videoIdMatch = videoUrl.match(
     /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/
   );
@@ -44,7 +29,7 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   try {
-    // ✅ Step 1: Fetch oEmbed metadata (title, thumbnail, channel info)
+    // Fetch oEmbed metadata (title, thumbnail, channel info)
     const oembedRes = await fetch(
       `https://www.youtube.com/oembed?url=${videoUrl}&format=json`
     );
@@ -59,7 +44,7 @@ export async function GET(request: Request): Promise<Response> {
     const channelName: string = oembed.author_name || "Unknown Creator";
     const channelUrl: string | null = oembed.author_url || null;
 
-    // ✅ Step 2: Fetch duration + view count using YouTube Data API
+    // Fetch duration + view count using YouTube Data API
     let duration = "Unknown";
     let viewCount = 0;
 
@@ -80,7 +65,7 @@ export async function GET(request: Request): Promise<Response> {
       }
     }
 
-    // ✅ Step 3: Get transcript from Supadata
+    // Get transcript from Supadata
     const supadata = new Supadata({
       apiKey: process.env.SUPADATA_API_KEY as string,
     });
@@ -136,7 +121,7 @@ export async function GET(request: Request): Promise<Response> {
       throw new Error("Transcript not found in response");
     }
 
-    // ✅ Step 4: Summarize transcript with Gemini
+    // Summarize transcript with Gemini
     const prompt = `
 You are a helpful assistant. Summarize the following YouTube transcript clearly and concisely.
 
@@ -158,7 +143,7 @@ Return valid JSON:
       prompt,
     });
 
-    // ✅ Step 5: Return final structured JSON
+    // Return final structured JSON
     return NextResponse.json({
       videoId,
       title,
@@ -180,7 +165,6 @@ Return valid JSON:
   }
 }
 
-// ✅ Helper function: Convert ISO 8601 duration (PT36M21S) → "36m 21s"
 function formatYouTubeDuration(duration: string): string {
   const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
   if (!match) return "Unknown";
