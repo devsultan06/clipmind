@@ -8,7 +8,6 @@ import {
   History,
   Zap,
   BookOpen,
-  User,
   CheckCircle,
   Loader,
   X,
@@ -212,10 +211,6 @@ export default function Home() {
               <span>Library</span>
             </button>
           </Link>
-          <button className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg shadow-sm hover:bg-purple-700 transition-colors">
-            <User className="w-5 h-5" />
-            <span>Login</span>
-          </button>
         </div>
       </header>
 
@@ -252,18 +247,6 @@ export default function Home() {
                 <span>Summarize</span>
               </button>
             </div>
-          </div>
-
-          <div className="mt-4 text-center">
-            <p className="text-sm text-gray-500 max-w-lg mx-auto">
-              For your privacy, your summary data will not be stored until you
-              <Link
-                href="/login"
-                className="text-purple-600 ml-1 hover:underline"
-              >
-                sign in.
-              </Link>
-            </p>
           </div>
         </div>
 
