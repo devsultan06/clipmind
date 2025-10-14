@@ -8,7 +8,6 @@ import {
   Share2,
   Copy,
   Calendar,
-  Clock,
   ExternalLink,
   Download,
   Bookmark,
@@ -17,7 +16,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import { useParams } from "next/navigation";
 import { useSummaryStore } from "@/store/summaryStore";
-import { formatViewCount } from "@/lib/formatCount";
+// import { formatViewCount } from "@/lib/formatCount";
 import Tags from "@/components/Tags";
 
 export default function SummaryPage() {
@@ -68,7 +67,7 @@ export default function SummaryPage() {
     }
   };
 
-  const result = formatViewCount(summary.viewCount);
+  // const result = formatViewCount(summary.viewCount);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -296,20 +295,20 @@ export default function SummaryPage() {
                 <Calendar className="w-4 h-4" />
                 <span>{formatDate(summary.createdAt)}</span>
               </div>
-              <div className="flex items-center gap-1">
+              {/* <div className="flex items-center gap-1">
                 <Clock className="w-4 h-4" />
                 <span>{summary.duration}</span>
-              </div>
+              </div> */}
               {summary.channelName && (
                 <div className="flex items-center gap-1">
                   <span>by {summary.channelName}</span>
                 </div>
               )}
-              {summary.viewCount && (
+              {/* {summary.viewCount && (
                 <div className="flex items-center gap-1">
                   <span>{result} views</span>
                 </div>
-              )}
+              )} */}
             </div>
 
             <Tags tags={tags} />
