@@ -37,7 +37,7 @@ export default function Demo() {
           className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 mb-8 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to Home</span>
+          <span>Back to Home </span>
         </Link>
 
         {/* Page Title */}
