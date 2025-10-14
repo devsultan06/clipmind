@@ -1,17 +1,31 @@
-// ✅ Force Node runtime (important for xml2js)
+// ✅ Ensure proper runtime
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { parseStringPromise } from "xml2js";
+import { Supadata } from "@supadata/js";
 import { generateText } from "ai";
 import { google } from "@/lib/gemini";
-import { CaptionTrack, ParsedTranscript, TranscriptEntry } from "@/types";
+
+interface TranscriptResponse {
+  text?: string;
+  jobId?: string;
+  content?: string;
+  transcript?: string;
+  data?: { text?: string };
+  [key: string]: unknown;
+}
+
+interface YouTubeVideoResponse {
+  items?: Array<{
+    contentDetails?: { duration?: string };
+    statistics?: { viewCount?: string };
+  }>;
+}
 
 export async function GET(request: Request): Promise<Response> {
   const { searchParams } = new URL(request.url);
   const videoUrl = searchParams.get("url");
-  const language = searchParams.get("lang") || "en";
 
   if (!videoUrl) {
     return NextResponse.json(
@@ -30,112 +44,104 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   try {
-    // ✅ Step 1: Fetch YouTube HTML (add headers to mimic browser)
-    const htmlResponse = await fetch(videoUrl, {
-      redirect: "follow",
+    // ✅ Step 1: Fetch oEmbed metadata (title, thumbnail, channel info)
+    const oembedRes = await fetch(
+      `https://www.youtube.com/oembed?url=${videoUrl}&format=json`
+    );
 
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        "Accept-Language": "en-US,en;q=0.9",
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      },
-    });
-
-    const html = await htmlResponse.text();
-    const apiKeyMatch = html.match(/"INNERTUBE_API_KEY":"([^"]+)"/);
-    if (!apiKeyMatch) throw new Error("INNERTUBE_API_KEY not found");
-    const apiKey = apiKeyMatch[1];
-
-    // ✅ Step 2: Get player data
-    const playerEndpoint = `https://www.youtube.com/youtubei/v1/player?key=${apiKey}`;
-    const playerResponse = await fetch(playerEndpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        context: {
-          client: { clientName: "ANDROID", clientVersion: "20.10.38" },
-        },
-        videoId,
-      }),
-    });
-    const playerData = await playerResponse.json();
-
-    const videoDetails = playerData?.videoDetails || {};
-    const title = videoDetails.title || "Unknown Title";
-    const thumbnails = videoDetails.thumbnail?.thumbnails || [];
-    const thumbnail =
-      thumbnails.length > 0 ? thumbnails[thumbnails.length - 1].url : null;
-
-    const channelName = videoDetails.author || "Unknown Creator";
-    const channelId = videoDetails.channelId;
-    const channelUrl = channelId
-      ? `https://www.youtube.com/channel/${channelId}`
-      : null;
-
-    const durationSeconds = parseInt(videoDetails.lengthSeconds || "0", 10);
-    const minutes = Math.floor(durationSeconds / 60);
-    const seconds = durationSeconds % 60;
-    const formattedDuration = `${minutes}m ${seconds}s`;
-    const viewCount = parseInt(videoDetails.viewCount || "0", 10);
-
-    // ✅ Step 3: Safely extract captions
-    const tracks = playerData?.captions?.playerCaptionsTracklistRenderer
-      ?.captionTracks as Array<CaptionTrack> | undefined;
-
-    if (!tracks || tracks.length === 0) {
-      return NextResponse.json(
-        { error: "No subtitles available for this video." },
-        { status: 404 }
-      );
+    if (!oembedRes.ok) {
+      throw new Error("Failed to fetch video metadata");
     }
 
-    const track =
-      tracks.find((t) => t.languageCode === language) ||
-      tracks.find((t) => t.languageCode.startsWith("en")) ||
-      tracks[0]; // fallback to first track if specific lang not found
+    const oembed = await oembedRes.json();
+    const title: string = oembed.title || "Unknown Title";
+    const thumbnail: string | null = oembed.thumbnail_url || null;
+    const channelName: string = oembed.author_name || "Unknown Creator";
+    const channelUrl: string | null = oembed.author_url || null;
 
-    if (!track) {
-      return NextResponse.json(
-        { error: `No captions found for language: ${language}` },
-        { status: 404 }
-      );
+    // ✅ Step 2: Fetch duration + view count using YouTube Data API
+    let duration = "Unknown";
+    let viewCount = 0;
+
+    if (process.env.YOUTUBE_API_KEY) {
+      const videoApiUrl = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails,statistics&id=${videoId}&key=${process.env.YOUTUBE_API_KEY}`;
+      const ytRes = await fetch(videoApiUrl);
+
+      if (ytRes.ok) {
+        const data: YouTubeVideoResponse = await ytRes.json();
+        const video = data.items?.[0];
+
+        if (video?.contentDetails?.duration) {
+          duration = formatYouTubeDuration(video.contentDetails.duration);
+        }
+        if (video?.statistics?.viewCount) {
+          viewCount = parseInt(video.statistics.viewCount, 10);
+        }
+      }
     }
 
-    const baseUrl = track.baseUrl.replace(/&fmt=\w+$/, "");
-
-    // ✅ Step 4: Fetch captions XML (with headers)
-    const xmlResponse = await fetch(baseUrl, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      },
+    // ✅ Step 3: Get transcript from Supadata
+    const supadata = new Supadata({
+      apiKey: process.env.SUPADATA_API_KEY as string,
     });
-    if (!xmlResponse.ok) throw new Error("Failed to fetch captions XML");
 
-    const xml = await xmlResponse.text();
-    const parsed = (await parseStringPromise(xml)) as ParsedTranscript;
+    const transcriptRaw = await supadata.youtube.transcript({
+      url: videoUrl,
+      lang: "en",
+      text: true,
+    });
 
-    const transcript: TranscriptEntry[] = Array.isArray(parsed.transcript?.text)
-      ? parsed.transcript.text.map((entry) => ({
-          text: entry._,
-          start: parseFloat(entry.$.start),
-          duration: parseFloat(entry.$.dur),
-          end: parseFloat(entry.$.start) + parseFloat(entry.$.dur),
-        }))
-      : [];
+    const transcriptResponse = transcriptRaw as unknown as TranscriptResponse;
+    let result: string | undefined;
 
-    if (transcript.length === 0) throw new Error("Empty subtitle data.");
+    if (transcriptResponse.text) {
+      result = transcriptResponse.text;
+    } else if (transcriptResponse.content) {
+      result = transcriptResponse.content;
+    } else if (transcriptResponse.transcript) {
+      result = transcriptResponse.transcript;
+    } else if (transcriptResponse.jobId) {
+      let jobStatus = await supadata.transcript.getJobStatus(
+        transcriptResponse.jobId
+      );
 
-    // ✅ Step 5: Combine into one string
-    const text = transcript.map((entry) => entry.text).join(" ");
+      while (
+        jobStatus.status !== "completed" &&
+        jobStatus.status !== "failed"
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        jobStatus = await supadata.transcript.getJobStatus(
+          transcriptResponse.jobId
+        );
+      }
 
-    // ✅ Step 6: Summarize with Gemini
+      if (jobStatus.status === "failed") {
+        throw new Error(`Transcript job failed: ${jobStatus.error}`);
+      }
+
+      // Access transcript text from jobStatus with proper type assertion
+      const jobResult = jobStatus as unknown as {
+        content?: string;
+        data?: { text?: string };
+        result?: { text?: string; transcript?: string };
+        [key: string]: unknown;
+      };
+      result =
+        jobResult.content || jobResult.data?.text || jobResult.result?.text;
+    } else {
+      result = transcriptResponse.data?.text;
+    }
+
+    if (!result) {
+      throw new Error("Transcript not found in response");
+    }
+
+    // ✅ Step 4: Summarize transcript with Gemini
     const prompt = `
 You are a helpful assistant. Summarize the following YouTube transcript clearly and concisely.
 
 Transcript:
-"${text}"
+"${result}"
 
 Return valid JSON:
 {
@@ -147,31 +153,39 @@ Return valid JSON:
 }
 `;
 
-    const { text: summary } = await generateText({
+    const { text: summaryText } = await generateText({
       model: google("gemini-2.5-flash"),
       prompt,
     });
 
-    // ✅ Return combined response
+    // ✅ Step 5: Return final structured JSON
     return NextResponse.json({
       videoId,
       title,
       thumbnail,
       channelName,
       channelUrl,
-      duration: formattedDuration,
+      duration,
       viewCount,
-      language,
-      text,
-      summary,
+      language: "en",
+      text: result,
+      summary: summaryText,
     });
-  } catch (error: unknown) {
-    console.error("Transcript extraction failed:", error);
+  } catch (error) {
+    console.error("❌ Transcript extraction failed:", error);
     return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Internal Server Error",
-      },
+      { error: "Failed to extract transcript" },
       { status: 500 }
     );
   }
+}
+
+// ✅ Helper function: Convert ISO 8601 duration (PT36M21S) → "36m 21s"
+function formatYouTubeDuration(duration: string): string {
+  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!match) return "Unknown";
+  const hours = match[1] ? `${match[1]}h ` : "";
+  const minutes = match[2] ? `${match[2]}m ` : "";
+  const seconds = match[3] ? `${match[3]}s` : "";
+  return `${hours}${minutes}${seconds}`.trim();
 }
