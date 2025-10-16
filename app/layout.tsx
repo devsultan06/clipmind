@@ -58,7 +58,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <Analytics /> {/* 👈 Add this here */}
+      <Analytics />
       <body>{children}</body>
     </html>
   );
