@@ -247,7 +247,7 @@ export default function Home() {
               <button
                 onClick={processVideo}
                 disabled={!url.trim() || !isValidYouTubeUrl(url)}
-                className="px-8 py-3 w-full md:w-fit justify-center md:mt-0 mt-[30px] bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="px-8 py-3 w-full md:w-fit justify-center md:mt-0 mt-[20px] bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 <Sparkles className="w-4 h-4" />
                 <span>Summarize</span>
