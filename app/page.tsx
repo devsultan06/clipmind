@@ -195,8 +195,8 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
       {/* Header */}
-      <header className="flex justify-between -mt-10 items-center p-6 max-w-7xl mx-auto">
-        <div className="flex items-center gap-2 ">
+      <header className="md:flex justify-between -mt-10 items-center p-6 max-w-7xl mx-auto">
+        <div className="flex items-center justify-center gap-2 ">
           <Image
             src="/images/logo.png"
             alt="ClipMind Logo"
@@ -204,7 +204,7 @@ export default function Home() {
             height={102}
           />
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center gap-3">
           <Link href="/demo">
             <button className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">
               <Sparkles className="w-5 h-5 text-blue-600" />
@@ -222,10 +222,10 @@ export default function Home() {
 
       <main className="max-w-5xl mx-auto px-6 py-[20px] text-center">
         <div className="mb-16">
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
+          <h1 className="text-3xl md:text-6xl font-bold text-gray-900 mb-1">
             Summarize YouTube Videos
           </h1>
-          <h2 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mb-8">
+          <h2 className="text-3xl md:text-6xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mb-8">
             with AI
           </h2>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
@@ -236,18 +236,18 @@ export default function Home() {
 
         <div className="mb-20">
           <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8 max-w-2xl mx-auto">
-            <div className="flex gap-4">
+            <div className="md:flex gap-4">
               <input
                 type="text"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="Paste YouTube URL here..."
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-700"
+                className="flex-1 px-4 py-3 w-full md:w-fit border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-700"
               />
               <button
                 onClick={processVideo}
                 disabled={!url.trim() || !isValidYouTubeUrl(url)}
-                className="px-8 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="px-8 py-3 w-full md:w-fit justify-center md:mt-0 mt-[30px] bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 <Sparkles className="w-4 h-4" />
                 <span>Summarize</span>
